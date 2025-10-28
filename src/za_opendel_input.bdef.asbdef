@@ -1,0 +1,44 @@
+abstract;
+strict ( 2 );
+with hierarchy;
+
+define behavior for za_opendel_input //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+  association _range_soldto;
+  association _range_shipto;
+  association _range_material;
+  association _range_delivery;
+  association _range_sales_order;
+  association _range_bill_block;
+}
+
+define behavior for ZA_OPENDEL_IN_BILL_BLOCK //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}
+
+define behavior for ZA_OPENDEL_IN_DELIVERY //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}
+
+define behavior for ZA_OPENDEL_IN_MATERIAL //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}
+
+define behavior for ZA_OPENDEL_IN_SALES_ORDER //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}
+
+define behavior for ZA_OPENDEL_IN_SHIPTO //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}
+
+define behavior for za_opendel_in_soldto //alias <alias_name>
+{
+  field ( suppress ) Dummy;
+}

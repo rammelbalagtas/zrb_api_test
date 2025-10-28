@@ -1,0 +1,5 @@
+CLASS zbp_ce_open_delivery DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zce_open_delivery.
+ENDCLASS.
+
+CLASS zbp_ce_open_delivery IMPLEMENTATION.
+ENDCLASS.

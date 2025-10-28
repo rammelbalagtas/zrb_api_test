@@ -1,0 +1,4 @@
+@EndUserText.label: 'Open Delivery'
+define service ZSD_OPENDELIVERY {
+  expose ZCE_OPEN_DELIVERY;
+}

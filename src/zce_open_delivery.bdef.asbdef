@@ -1,0 +1,15 @@
+unmanaged implementation in class zbp_ce_open_delivery unique;
+//strict ( 2 ); //Uncomment this line in order to enable strict mode 2. The strict mode has two variants (strict(1), strict(2)) and is prerequisite to be future proof regarding syntax and to be able to release your BO.
+
+define behavior for ZCE_OPEN_DELIVERY alias OpenDelivery
+//late numbering
+lock master
+authorization master ( instance )
+//etag master <field_name>
+{
+  internal create;
+  internal update;
+  internal delete;
+  field ( readonly ) dummykey;
+  static action getOpenDelivery deep parameter za_opendel_input result [0..*] za_opendel_result;
+}
