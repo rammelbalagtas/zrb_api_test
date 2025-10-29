@@ -291,7 +291,7 @@ CLASS zcl_open_delivery DEFINITION
              soldto        TYPE c LENGTH 10,
              shipto        TYPE c LENGTH 10,
              delivery      TYPE c LENGTH 10,
-             delivery_item TYPE c LENGTH 4,
+             delivery_item TYPE c LENGTH 6,
              material      TYPE c LENGTH 40,
              sloc          TYPE c LENGTH 4,
              sales_order   TYPE c LENGTH 10,
@@ -302,6 +302,7 @@ CLASS zcl_open_delivery DEFINITION
              salesorg      TYPE c LENGTH 4,
              distrchan     TYPE c LENGTH 2,
              division      TYPE c LENGTH 2,
+             bill_block    TYPE c LENGTH 2,
            END OF ty_result,
            tt_result TYPE STANDARD TABLE OF ty_result WITH DEFAULT KEY.
 
@@ -327,11 +328,14 @@ CLASS zcl_open_delivery IMPLEMENTATION.
 
     "Delivery
     DATA lt_delivery TYPE zcl_open_delivery=>tt_delivery_deep.
+    DATA lt_delivery_header_final TYPE zcl_open_delivery=>tt_delivery_deep.
     DATA lt_delivery_item TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
-    DATA lt_delivery_final TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
+    DATA lt_delivery_item_final TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
     DATA lv_count_delivery TYPE i.
+    DATA lt_delivery_nums TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_item_type-delivery_document.
 
     "Sales Order
+    DATA lt_sales_order TYPE TABLE OF zsvc_salesorder_api=>tys_sales_order_item_type.
 
     ls_parameters = is_parameters.
 
@@ -372,6 +376,7 @@ CLASS zcl_open_delivery IMPLEMENTATION.
       ENDIF.
       "filter line items
       CLEAR lt_delivery_item.
+      SORT lt_delivery BY delivery_document.
       LOOP AT lt_delivery INTO DATA(ls_delivery).
         APPEND LINES OF ls_delivery-to_delivery_document_item TO lt_delivery_item.
       ENDLOOP.
@@ -382,23 +387,68 @@ CLASS zcl_open_delivery IMPLEMENTATION.
       ENDIF.
 
       IF lt_delivery_item IS NOT INITIAL.
-        APPEND LINES OF lt_delivery_item TO lt_delivery_final.
+        DATA(lt_temp) = lt_delivery_item.
+        DELETE ADJACENT DUPLICATES FROM lt_temp COMPARING delivery_document.
+        LOOP AT lt_temp INTO DATA(ls_temp).
+          APPEND INITIAL LINE TO lt_delivery_nums ASSIGNING FIELD-SYMBOL(<fs_delivery_numbers>).
+          <fs_delivery_numbers>-sign = 'I'.
+          <fs_delivery_numbers>-option = 'EQ'.
+          <fs_delivery_numbers>-low = ls_temp-delivery_document.
+        ENDLOOP.
+        DELETE lt_delivery WHERE delivery_document NOT IN lt_delivery_nums.
+        APPEND LINES OF lt_delivery_item TO lt_delivery_item_final.
+        APPEND LINES OF lt_delivery TO lt_delivery_header_final.
       ENDIF.
 
-      lv_count_delivery = lines( lt_delivery_final ).
+      lv_count_delivery = lines( lt_delivery_item_final ).
     ENDWHILE.
 
-    IF lt_delivery_final IS NOT INITIAL.
-      LOOP AT lt_delivery_final INTO DATA(ls_delivery_final).
+    IF lt_delivery_item_final IS NOT INITIAL.
+      LOOP AT lt_delivery_item_final INTO DATA(ls_delivery_item_final).
         APPEND INITIAL LINE TO ls_parameters-input-range_sales_order ASSIGNING FIELD-SYMBOL(<fs_range_sales_order>).
         <fs_range_sales_order>-sign = 'I'.
         <fs_range_sales_order>-range_option = 'EQ'.
-        <fs_range_sales_order>-low = ls_delivery_final-reference_sddocument.
+        <fs_range_sales_order>-low = ls_delivery_item_final-reference_sddocument.
       ENDLOOP.
 
-*      zcl_test_delivery_api=>read_sales_order( EXPORTING is_parameters = ls_parameters
-*                                                     IMPORTING et_data = lt_data ).
+      zcl_test_salesorder_api=>read_sales_order( EXPORTING is_parameters = ls_parameters
+                                                 IMPORTING et_data = lt_sales_order ).
+
     ENDIF.
+
+    LOOP AT lt_delivery_item_final INTO ls_delivery_item_final.
+      APPEND INITIAL LINE TO et_result ASSIGNING FIELD-SYMBOL(<fs_result>).
+      <fs_result>-salesoff = ls_delivery_item_final-sales_office.
+      READ TABLE lt_delivery_header_final INTO DATA(ls_delivery_header_final) WITH KEY delivery_document = ls_delivery_item_final-delivery_document.
+      IF sy-subrc EQ 0.
+        <fs_result>-dlv_type = ls_delivery_header_final-delivery_document_type.
+        <fs_result>-soldto = ls_delivery_header_final-sold_to_party.
+        <fs_result>-shipto = ls_delivery_header_final-ship_to_party.
+        <fs_result>-bill_block   = ls_delivery_header_final-header_billing_block_reaso.
+        <fs_result>-salesorg = ls_delivery_header_final-sales_organization.
+      ENDIF.
+      <fs_result>-delivery = ls_delivery_item_final-delivery_document.
+      <fs_result>-delivery_item = ls_delivery_item_final-delivery_document_item.
+      <fs_result>-sales_order = ls_delivery_item_final-reference_sddocument.
+      <fs_result>-material = ls_delivery_item_final-material.
+      <fs_result>-distrchan = ls_delivery_item_final-distribution_channel.
+      <fs_result>-division = ls_delivery_item_final-division.
+      <fs_result>-sloc = ls_delivery_item_final-storage_location.
+      <fs_result>-plant = ls_delivery_item_final-plant.
+
+      DATA lv_sales_order type c LENGTH 10.
+      DATA lv_sales_order_item type c LENGTH 6.
+      lv_sales_order = |{ ls_delivery_item_final-reference_sddocument ALPHA = OUT }|.
+      lv_sales_order_item = |{ ls_delivery_item_final-reference_sddocument_item ALPHA = OUT }|.
+      READ TABLE lt_sales_order INTO DATA(ls_sales_order) WITH KEY sales_order = lv_sales_order
+                                                                   sales_order_item = lv_sales_order_item.
+      IF sy-subrc EQ 0.
+        <fs_result>-dlv_qty = ls_sales_order-requested_quantity.
+        <fs_result>-dlv_value = ls_sales_order-net_amount.
+      ENDIF.
+    ENDLOOP.
+
+    CHECK et_result IS NOT INITIAL.
 
   ENDMETHOD.
 

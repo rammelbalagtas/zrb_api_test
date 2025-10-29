@@ -126,6 +126,7 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
                                                         ( CONV #( 'STORAGE_LOCATION' ) )
                                                         ( CONV #( 'DISTRIBUTION_CHANNEL' ) )
                                                         ( CONV #( 'DIVISION' ) )
+                                                        ( CONV #( 'PLANT' ) )
                                                         ( CONV #( 'REFERENCE_SDDOCUMENT' ) )
                                                         ( CONV #( 'REFERENCE_SDDOCUMENT_ITEM' ) )
                                                         ( CONV #( 'SALES_OFFICE' ) ) ) ).

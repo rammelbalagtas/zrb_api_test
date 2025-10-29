@@ -27,8 +27,6 @@ CLASS zcl_test_salesorder_api IMPLEMENTATION.
 
     DATA:
       lo_filter_factory    TYPE REF TO /iwbep/if_cp_filter_factory,
-      lo_filter_node_1     TYPE REF TO /iwbep/if_cp_filter_node,
-      lo_filter_node_2     TYPE REF TO /iwbep/if_cp_filter_node,
       lo_filter_node_root  TYPE REF TO /iwbep/if_cp_filter_node,
       lt_range_SALES_ORDER TYPE RANGE OF zsvc_salesorder_api=>tys_sales_order_type-sales_order.
 
@@ -55,6 +53,7 @@ CLASS zcl_test_salesorder_api IMPLEMENTATION.
         lo_request = lo_client_proxy->create_resource_for_entity_set( 'SALES_ORDER_ITEM' )->create_request_for_read( ).
         lo_request->set_select_properties( VALUE #( ( CONV #( 'SALES_ORDER' ) )
                                                     ( CONV #( 'SALES_ORDER_ITEM' ) )
+                                                    ( CONV #( 'REQUESTED_QUANTITY' ) )
                                                     ( CONV #( 'NET_AMOUNT' ) ) ) ).
 
         " Create the filter tree
@@ -70,7 +69,7 @@ CLASS zcl_test_salesorder_api IMPLEMENTATION.
           DATA(lo_filter_node1)  = lo_filter_factory->create_by_range( iv_property_path     = 'SALES_ORDER'
                                                                        it_range             = lt_range_SALES_ORDER ).
         ENDIF.
-        lo_filter_node_root = lo_filter_node_1.
+        lo_filter_node_root = lo_filter_node1.
         lo_request->set_filter( lo_filter_node_root ).
 
         "Execute the request and retrieve the business data
