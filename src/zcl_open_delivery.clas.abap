@@ -305,20 +305,111 @@ CLASS zcl_open_delivery DEFINITION
            END OF ty_result,
            tt_result TYPE STANDARD TABLE OF ty_result WITH DEFAULT KEY.
 
-    CLASS-METHODS: get_open_delivery IMPORTING is_input TYPE ty_input EXPORTING et_result TYPE tt_result.
+    TYPES: BEGIN OF ty_parameters,
+             top   TYPE i,
+             skip  TYPE i,
+             input TYPE ty_input,
+           END OF ty_parameters.
 
+    CLASS-METHODS: get_open_delivery IMPORTING is_parameters TYPE ty_parameters EXPORTING et_result TYPE tt_result.
+    INTERFACES if_oo_adt_classrun .
   PROTECTED SECTION.
   PRIVATE SECTION.
 ENDCLASS.
 
 
 CLASS zcl_open_delivery IMPLEMENTATION.
+
   METHOD get_open_delivery.
-    DATA lt_data TYPE tt_delivery_deep.
-    DATA ls_parameters TYPE zcl_test_delivery_api=>ty_parameters.
+
+    "General
+    DATA ls_parameters TYPE ty_parameters.
+
+    "Delivery
+    DATA lt_delivery TYPE zcl_open_delivery=>tt_delivery_deep.
+    DATA lt_delivery_item TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
+    DATA lt_delivery_final TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
+    DATA lv_count_delivery TYPE i.
+
+    "Sales Order
+
+    ls_parameters = is_parameters.
+
+    "test data
+    APPEND INITIAL LINE TO ls_parameters-input-range_soldto ASSIGNING FIELD-SYMBOL(<fs_range_soldto>).
+    <fs_range_soldto>-sign = 'I'.
+    <fs_range_soldto>-range_option = 'EQ'.
+    <fs_range_soldto>-low = '17100001'.
+
+    APPEND INITIAL LINE TO ls_parameters-input-range_shipto ASSIGNING FIELD-SYMBOL(<fs_range_shipto>).
+    <fs_range_shipto>-sign = 'I'.
+    <fs_range_shipto>-range_option = 'EQ'.
+    <fs_range_shipto>-low = '17100001'.
+
+    APPEND INITIAL LINE TO ls_parameters-input-range_material ASSIGNING FIELD-SYMBOL(<fs_range_material>).
+    <fs_range_material>-sign = 'I'.
+    <fs_range_material>-range_option = 'EQ'.
+    <fs_range_material>-low = 'TG11'.
+
+    WHILE lv_count_delivery < 100.
+
+      IF sy-index > 3.
+        EXIT. "avoid rate limiting
+      ENDIF.
+
+      IF sy-index = 1.
+        ls_parameters-top = 100.
+        ls_parameters-skip = ls_parameters-input-skiptoken.
+      ELSE.
+        ls_parameters-skip = ls_parameters-skip + 100.
+      ENDIF.
+
+      CLEAR lt_delivery.
+      zcl_test_delivery_api=>read_delivery( EXPORTING is_parameters = ls_parameters
+                                            IMPORTING et_data = lt_delivery ).
+      IF lt_delivery IS INITIAL.
+        EXIT.
+      ENDIF.
+      "filter line items
+      CLEAR lt_delivery_item.
+      LOOP AT lt_delivery INTO DATA(ls_delivery).
+        APPEND LINES OF ls_delivery-to_delivery_document_item TO lt_delivery_item.
+      ENDLOOP.
+
+      "filter items
+      IF ls_parameters-input-range_material IS NOT INITIAL.
+        DELETE lt_delivery_item WHERE material NOT IN ls_parameters-input-range_material[].
+      ENDIF.
+
+      IF lt_delivery_item IS NOT INITIAL.
+        APPEND LINES OF lt_delivery_item TO lt_delivery_final.
+      ENDIF.
+
+      lv_count_delivery = lines( lt_delivery_final ).
+    ENDWHILE.
+
+    IF lt_delivery_final IS NOT INITIAL.
+      LOOP AT lt_delivery_final INTO DATA(ls_delivery_final).
+        APPEND INITIAL LINE TO ls_parameters-input-range_sales_order ASSIGNING FIELD-SYMBOL(<fs_range_sales_order>).
+        <fs_range_sales_order>-sign = 'I'.
+        <fs_range_sales_order>-range_option = 'EQ'.
+        <fs_range_sales_order>-low = ls_delivery_final-reference_sddocument.
+      ENDLOOP.
+
+*      zcl_test_delivery_api=>read_sales_order( EXPORTING is_parameters = ls_parameters
+*                                                     IMPORTING et_data = lt_data ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD if_oo_adt_classrun~main.
+
+    DATA lt_result TYPE tt_result.
+    DATA ls_parameters TYPE ty_parameters.
     ls_parameters-top = 100.
     ls_parameters-skip = 0.
-    zcl_test_delivery_api=>read_delivery( EXPORTING is_parameters = ls_parameters
-                                          IMPORTING et_data = lt_data ).
+    get_open_delivery( EXPORTING is_parameters = ls_parameters
+                       IMPORTING et_result = lt_result ).
+
   ENDMETHOD.
 ENDCLASS.

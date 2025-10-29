@@ -4,36 +4,33 @@ CLASS zcl_test_salesorder_api DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
-    CONSTANTS c_api_key      TYPE string VALUE `2baUSS3WkDjAgLy3914XzxLK32LKCFRO`.
+    CONSTANTS c_api_key      TYPE string VALUE `AWDAvmzST6MTgpWKBfGz5lCoxW2Rtgc2`.
     CONSTANTS c_api_endpoint TYPE string VALUE `https://sandbox.api.sap.com`.
+
+    CLASS-METHODS: read_sales_order IMPORTING is_parameters TYPE zcl_open_delivery=>ty_parameters
+                                    EXPORTING et_data       TYPE ANY TABLE.
 
     INTERFACES if_oo_adt_classrun .
   PROTECTED SECTION.
   PRIVATE SECTION.
 ENDCLASS.
 
-
-
 CLASS zcl_test_salesorder_api IMPLEMENTATION.
 
-
-  METHOD if_oo_adt_classrun~main.
-
-    DATA:
-      lt_business_data  TYPE TABLE OF zsvc_salesorder_api=>tys_sales_order_type,
-      lt_business_data2 TYPE TABLE OF zsvc_salesorder_api=>tys_sales_order_type,
-      lo_http_client    TYPE REF TO if_web_http_client,
-      lo_client_proxy   TYPE REF TO /iwbep/if_cp_client_proxy,
-      lo_request        TYPE REF TO /iwbep/if_cp_request_read_list,
-      lo_response       TYPE REF TO /iwbep/if_cp_response_read_lst.
+  METHOD read_sales_order.
 
     DATA:
-      lo_filter_factory           TYPE REF TO /iwbep/if_cp_filter_factory,
-      lo_filter_node_1            TYPE REF TO /iwbep/if_cp_filter_node,
-      lo_filter_node_2            TYPE REF TO /iwbep/if_cp_filter_node,
-      lo_filter_node_root         TYPE REF TO /iwbep/if_cp_filter_node,
-*      lt_range_SALES_ORDER        TYPE RANGE OF zsvc_salesorder_api=>tys_sales_order_type-sales_order,
-      lt_range_SALES_ORDER_TYPE_2 TYPE RANGE OF zsvc_salesorder_api=>tys_sales_order_type-sales_order_type_2.
+      lo_http_client  TYPE REF TO if_web_http_client,
+      lo_client_proxy TYPE REF TO /iwbep/if_cp_client_proxy,
+      lo_request      TYPE REF TO /iwbep/if_cp_request_read_list,
+      lo_response     TYPE REF TO /iwbep/if_cp_response_read_lst.
+
+    DATA:
+      lo_filter_factory    TYPE REF TO /iwbep/if_cp_filter_factory,
+      lo_filter_node_1     TYPE REF TO /iwbep/if_cp_filter_node,
+      lo_filter_node_2     TYPE REF TO /iwbep/if_cp_filter_node,
+      lo_filter_node_root  TYPE REF TO /iwbep/if_cp_filter_node,
+      lt_range_SALES_ORDER TYPE RANGE OF zsvc_salesorder_api=>tys_sales_order_type-sales_order.
 
     TRY.
 
@@ -55,59 +52,41 @@ CLASS zcl_test_salesorder_api IMPLEMENTATION.
 
 
         " Navigate to the resource and create a request for the read operation
-        lo_request = lo_client_proxy->create_resource_for_entity_set( 'SALES_ORDER' )->create_request_for_read( ).
-*        lo_request->set_select_properties( VALUE #( ( CONV #( 'SALES_ORDER' ) )
-*            ( CONV #( 'SALES_OFFICE' ) )
-*            ( CONV #( 'SALES_GROUP' ) ) ) ).
-
-        DATA: lo_expand_node_root TYPE REF TO /iwbep/if_cp_expand_node,
-              lo_expand_node      TYPE REF TO /iwbep/if_cp_expand_node.
-
-        lo_expand_node_root = lo_request->create_expand_node( ).
-        lo_expand_node = lo_expand_node_root->add_expand( 'ITEM' ).
+        lo_request = lo_client_proxy->create_resource_for_entity_set( 'SALES_ORDER_ITEM' )->create_request_for_read( ).
+        lo_request->set_select_properties( VALUE #( ( CONV #( 'SALES_ORDER' ) )
+                                                    ( CONV #( 'SALES_ORDER_ITEM' ) )
+                                                    ( CONV #( 'NET_AMOUNT' ) ) ) ).
 
         " Create the filter tree
         lo_filter_factory = lo_request->create_filter_factory( ).
+        IF is_parameters-input-range_sales_order IS NOT INITIAL.
+          LOOP AT is_parameters-input-range_sales_order INTO DATA(ls_range_sales_order).
+            APPEND INITIAL LINE TO lt_range_SALES_ORDER ASSIGNING FIELD-SYMBOL(<fs_range_sales_order>).
+            <fs_range_sales_order>-sign = ls_range_sales_order-sign.
+            <fs_range_sales_order>-option = ls_range_sales_order-range_option.
+            <fs_range_sales_order>-low = ls_range_sales_order-low.
+            <fs_range_sales_order>-high = ls_range_sales_order-high.
+          ENDLOOP.
+          DATA(lo_filter_node1)  = lo_filter_factory->create_by_range( iv_property_path     = 'SALES_ORDER'
+                                                                       it_range             = lt_range_SALES_ORDER ).
+        ENDIF.
+        lo_filter_node_root = lo_filter_node_1.
+        lo_request->set_filter( lo_filter_node_root ).
 
-*        lo_filter_node_1  = lo_filter_factory->create_by_range( iv_property_path     = 'SALES_ORDER'
-*                                                                it_range             = lt_range_SALES_ORDER ).
-        APPEND INITIAL LINE TO lt_range_SALES_ORDER_TYPE_2 ASSIGNING FIELD-SYMBOL(<fs_order_type>).
-        <fs_order_type>-sign = 'I'.
-        <fs_order_type>-option = 'EQ'.
-        <fs_order_type>-low = 'TA'.
-
-        lo_filter_node_2  = lo_filter_factory->create_by_range( iv_property_path     = 'SALES_ORDER_TYPE_2'
-                                                                it_range             = lt_range_SALES_ORDER_TYPE_2 ).
-*        lo_filter_node_root = lo_filter_node_1->and( lo_filter_node_2 ).
-        lo_filter_node_root = lo_filter_node_2.
-        lo_request->set_filter( lo_filter_node_2 ).
-
-        DATA ts1 TYPE timestampl.
-        DATA ts2 TYPE timestampl.
-        GET TIME STAMP FIELD ts1.
-        DATA(time1) = cl_abap_context_info=>get_system_time( ).
-
-        " Execute the request and retrieve the business data
+        "Execute the request and retrieve the business data
         lo_response = lo_request->execute( ).
-        lo_response->get_business_data( IMPORTING et_business_data = lt_business_data ).
+        lo_response->get_business_data( IMPORTING et_business_data = et_data ).
 
-*        DATA lv_count TYPE i.
-*
 *        WHILE lo_response->has_next( ).
-*          lv_count = lv_count + 1.
 *          lo_response = lo_response->get_next( ).
-*          CLEAR lt_business_data2.
-*          lo_response->get_business_data( IMPORTING et_business_data = lt_business_data2 ).
-*          APPEND LINES OF lt_business_data2 TO lt_business_data.
-*          IF lv_count = 10.
+*          CLEAR lt_data_temp.
+*          lo_response->get_business_data( IMPORTING et_business_data = lt_data_temp ).
+*          IF lt_data_temp IS NOT INITIAL.
+*            APPEND LINES OF lt_data_temp TO et_data.
+*          ELSE.
 *            EXIT.
 *          ENDIF.
 *        ENDWHILE.
-
-        GET TIME STAMP FIELD ts2.
-        DATA(time2) = cl_abap_context_info=>get_system_time( ).
-        out->write( time1 ).
-        out->write( time2 ).
 
       CATCH /iwbep/cx_cp_remote INTO DATA(lx_remote).
         " Handle remote Exception
@@ -124,5 +103,12 @@ CLASS zcl_test_salesorder_api IMPLEMENTATION.
 
 
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD if_oo_adt_classrun~main.
+
+
   ENDMETHOD.
 ENDCLASS.

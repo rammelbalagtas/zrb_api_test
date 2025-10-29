@@ -4,58 +4,10 @@ CLASS zcl_test_delivery_api DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
-    CONSTANTS c_api_key      TYPE string VALUE `2baUSS3WkDjAgLy3914XzxLK32LKCFRO`.
+    CONSTANTS c_api_key      TYPE string VALUE `AWDAvmzST6MTgpWKBfGz5lCoxW2Rtgc2`.
     CONSTANTS c_api_endpoint TYPE string VALUE `https://sandbox.api.sap.com`.
 
-    TYPES: BEGIN OF ty_parameters,
-             top    TYPE i,
-             skip   TYPE i,
-             filter TYPE zcl_open_delivery=>ty_input,
-           END OF ty_parameters.
-
-    TYPES: BEGIN OF ty_range_soldto,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 10,
-             high         TYPE c LENGTH 10,
-           END OF ty_range_soldto.
-
-    TYPES: BEGIN OF ty_range_shipto,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 10,
-             high         TYPE c LENGTH 10,
-           END OF ty_range_shipto.
-
-    TYPES: BEGIN OF ty_range_material,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 40,
-             high         TYPE c LENGTH 40,
-           END OF ty_range_material.
-
-    TYPES: BEGIN OF ty_range_delivery,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 10,
-             high         TYPE c LENGTH 10,
-           END OF ty_range_delivery.
-
-    TYPES: BEGIN OF ty_range_sales_order,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 10,
-             high         TYPE c LENGTH 10,
-           END OF ty_range_sales_order.
-
-    TYPES: BEGIN OF ty_range_bill_block,
-             sign         TYPE c LENGTH 1,
-             range_option TYPE c LENGTH 2,
-             low          TYPE c LENGTH 2,
-             high         TYPE c LENGTH 2,
-           END OF ty_range_bill_block.
-
-    CLASS-METHODS: read_delivery IMPORTING is_parameters TYPE ty_parameters
+    CLASS-METHODS: read_delivery IMPORTING is_parameters TYPE zcl_open_delivery=>ty_parameters
                                  EXPORTING et_data       TYPE ANY TABLE.
 
     INTERFACES if_oo_adt_classrun .
@@ -83,7 +35,8 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
       lt_range_shipto        TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-ship_to_party,
       lt_range_salesorg      TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-sales_organization,
       lt_range_billblock     TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-header_billing_block_reaso,
-      lt_range_delivery      TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-delivery_document.
+      lt_range_delivery      TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-delivery_document,
+      lt_range_status        TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-overall_sdprocess_status.
 
     TRY.
 
@@ -123,8 +76,8 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
         DATA(lo_filter_node1) = lo_filter_factory->create_by_range( iv_property_path     = 'DELIVERY_DOCUMENT_TYPE'
                                                                     it_range             = lt_range_delivery_type ).
 
-        IF is_parameters-filter-range_soldto IS NOT INITIAL.
-          LOOP AT is_parameters-filter-range_soldto INTO DATA(ls_range_soldto).
+        IF is_parameters-input-range_soldto IS NOT INITIAL.
+          LOOP AT is_parameters-input-range_soldto INTO DATA(ls_range_soldto).
             APPEND INITIAL LINE TO lt_range_soldto ASSIGNING FIELD-SYMBOL(<fs_range_soldto>).
             <fs_range_soldto>-sign = ls_range_soldto-sign.
             <fs_range_soldto>-option = ls_range_soldto-range_option.
@@ -135,8 +88,8 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
                                                                        it_range             = lt_range_soldto ).
         ENDIF.
 
-        IF is_parameters-filter-range_soldto IS NOT INITIAL.
-          LOOP AT is_parameters-filter-range_shipto INTO DATA(ls_range_shipto).
+        IF is_parameters-input-range_soldto IS NOT INITIAL.
+          LOOP AT is_parameters-input-range_shipto INTO DATA(ls_range_shipto).
             APPEND INITIAL LINE TO lt_range_shipto ASSIGNING FIELD-SYMBOL(<fs_range_shipto>).
             <fs_range_shipto>-sign = ls_range_shipto-sign.
             <fs_range_shipto>-option = ls_range_shipto-range_option.
@@ -147,8 +100,15 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
           ENDLOOP.
         ENDIF.
 
+        APPEND INITIAL LINE TO lt_range_status ASSIGNING FIELD-SYMBOL(<fs_range_status>).
+        <fs_range_status>-sign = 'E'.
+        <fs_range_status>-option = 'EQ'.
+        <fs_range_status>-low = 'C'.
 
-        lo_filter_node_root = lo_filter_node1.
+        DATA(lo_filter_node4) = lo_filter_factory->create_by_range( iv_property_path     = 'OVERALL_SDPROCESS_STATUS'
+                                                                    it_range             = lt_range_status ).
+        lo_filter_node_root = lo_filter_node1->and( lo_filter_node4 ).
+*        lo_filter_node_root = lo_filter_node1.
         IF lo_filter_node2 IS NOT INITIAL.
           lo_filter_node_root = lo_filter_node_root->and( lo_filter_node2 ).
         ENDIF.
@@ -191,55 +151,6 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD if_oo_adt_classrun~main.
-
-    DATA lt_data TYPE zcl_open_delivery=>tt_delivery_deep.
-    DATA ls_parameters TYPE zcl_test_delivery_api=>ty_parameters.
-    DATA lt_delivery TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
-    DATA lt_delivery_final TYPE zsvc_delivery_api=>tyt_a_outb_delivery_item_type.
-    DATA lv_count_delivery TYPE i.
-
-    APPEND INITIAL LINE TO ls_parameters-filter-range_soldto ASSIGNING FIELD-SYMBOL(<fs_range_soldto>).
-    <fs_range_soldto>-sign = 'I'.
-    <fs_range_soldto>-range_option = 'EQ'.
-    <fs_range_soldto>-low = '17100001'.
-
-    APPEND INITIAL LINE TO ls_parameters-filter-range_shipto ASSIGNING FIELD-SYMBOL(<fs_range_shipto>).
-    <fs_range_shipto>-sign = 'I'.
-    <fs_range_shipto>-range_option = 'EQ'.
-    <fs_range_shipto>-low = '17100001'.
-
-    APPEND INITIAL LINE TO ls_parameters-filter-range_material ASSIGNING FIELD-SYMBOL(<fs_range_material>).
-    <fs_range_material>-sign = 'I'.
-    <fs_range_material>-range_option = 'EQ'.
-    <fs_range_material>-low = 'TG11'.
-
-    WHILE lv_count_delivery < 100.
-      IF sy-index = 0.
-        ls_parameters-top = 100.
-        ls_parameters-skip = 0.
-      ELSE.
-        ls_parameters-skip = ls_parameters-skip + 100.
-      ENDIF.
-      CLEAR lt_data.
-      zcl_test_delivery_api=>read_delivery( EXPORTING is_parameters = ls_parameters
-                                            IMPORTING et_data = lt_data ).
-      "filter line items
-      CLEAR lt_delivery.
-      LOOP AT lt_data INTO DATA(ls_data).
-        APPEND LINES OF ls_data-to_delivery_document_item TO lt_delivery.
-      ENDLOOP.
-
-      "filter items
-      IF ls_parameters-filter-range_material IS NOT INITIAL.
-        DELETE lt_delivery WHERE material NOT IN ls_parameters-filter-range_material[].
-      ENDIF.
-
-      IF lt_delivery IS NOT INITIAL.
-        APPEND LINES OF lt_delivery TO lt_delivery_final.
-      ENDIF.
-
-      lv_count_delivery = lines( lt_delivery_final ).
-    ENDWHILE.
 
   ENDMETHOD.
 ENDCLASS.
