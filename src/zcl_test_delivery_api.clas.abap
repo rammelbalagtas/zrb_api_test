@@ -152,6 +152,56 @@ CLASS zcl_test_delivery_api IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD if_oo_adt_classrun~main.
+    DATA:
+      lo_http_client  TYPE REF TO if_web_http_client,
+      lo_client_proxy TYPE REF TO /iwbep/if_cp_client_proxy,
+      lo_request      TYPE REF TO /iwbep/if_cp_request_read_list,
+      lo_response     TYPE REF TO /iwbep/if_cp_response_read_lst.
 
+    DATA:
+      lo_filter_factory   TYPE REF TO /iwbep/if_cp_filter_factory,
+      lo_filter_node_root TYPE REF TO /iwbep/if_cp_filter_node.
+
+    DATA:
+      lt_range_delivery_type TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-delivery_document_type,
+      lt_range_soldto        TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-sold_to_party,
+      lt_range_shipto        TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-ship_to_party,
+      lt_range_salesorg      TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-sales_organization,
+      lt_range_billblock     TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-header_billing_block_reaso,
+      lt_range_delivery      TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-delivery_document,
+      lt_range_status        TYPE RANGE OF zsvc_delivery_api=>tys_a_outb_delivery_header_typ-overall_sdprocess_status.
+
+    TRY.
+
+        DATA(lv_string) = `https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_OUTBOUND_DELIVERY_SRV;v=0002/A_OutbDeliveryHeader?$expand=to_DeliveryDocumentItem&$top=1&$format=json&$select=DeliveryDate`.
+        DATA(lo_destination) = cl_http_destination_provider=>create_by_url( lv_string ).
+        lo_http_client = cl_web_http_client_manager=>create_by_http_destination( lo_destination ).
+
+        ASSERT lo_http_client IS BOUND.
+
+        lo_http_client->get_http_request( )->set_header_field( i_name  = 'APIKey'
+                                                               i_value = c_api_key ).
+
+*        lo_http_client->get_http_request( )->set_header_field( i_name  = '~request_uri'
+*                                                               i_value = '/s4hanacloud/sap/opu/odata/sap/API_OUTBOUND_DELIVERY_SRV;v=0002/A_OutbDeliveryHeader?$expand=to_DeliveryDocumentItem&$top=10&$format=json' ).
+
+        DATA(lr_response) = lo_http_client->execute( i_method = if_web_http_client=>get ).
+
+        DATA(lv_text) = lr_response->get_text( ).
+        DATA(lv_status) =  lr_response->get_status( ).
+
+
+      CATCH /iwbep/cx_cp_remote INTO DATA(lx_remote).
+        " Handle remote Exception
+        " It contains details about the problems of your http(s) connection
+
+      CATCH /iwbep/cx_gateway INTO DATA(lx_gateway).
+        " Handle Exception
+
+      CATCH cx_web_http_client_error INTO DATA(lx_web_http_client_error).
+        " Handle Exception
+        RAISE SHORTDUMP lx_web_http_client_error.
+
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.
